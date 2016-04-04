@@ -1,0 +1,33 @@
+#include <windows.h>
+
+2 ICON "espio.ico"
+
+#define PCS_VERSION             1,16,04,04
+#define PCS_VERSION_STR         "512K\0"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     PCS_VERSION
+PRODUCTVERSION  PCS_VERSION
+FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
+//FILEFLAGS       0
+//FILEOS          VOS_NT_WINDOWS32
+//FILETYPE        VFT_APP
+//FILESUBTYPE     VFT2_UNKNOWN
+
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904E4"
+        BEGIN
+            VALUE "FileDescription", "Lightweight ESP interface\0"
+            VALUE "LegalCopyright", "deemru\0"
+            VALUE "ProductName", "espio\0"
+            VALUE "ProductVersion", PCS_VERSION_STR
+        END
+    END
+
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1252
+    END
+END
