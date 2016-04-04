@@ -21,7 +21,11 @@ extern "C" {
 #ifdef _WIN32
 #define ESPIO_API __declspec( dllexport )
 #define ESPIO_CALL __fastcall
+#ifdef _M_IX86
 #define ESPIO_LIBRARY "espio.dll"
+#else // _M_IX86
+#define ESPIO_LIBRARY "espio64.dll"
+#endif // _M_IX86
 #else
 #define ESPIO_API __attribute__( ( visibility( "default" ) ) )
 #define ESPIO_CALL
