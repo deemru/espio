@@ -1,7 +1,9 @@
 #include <string.h>
 #include "espio.h"
 
+#ifdef _WIN32
 #pragma warning( disable:4200 ) // nonstandard extension used: zero-sized array in struct/union
+#endif
 
 #pragma pack( push, 1 )
 
