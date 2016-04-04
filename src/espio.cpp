@@ -9,7 +9,7 @@ struct espdata
 {
     unsigned spi;
     unsigned seq;
-    char data[0];
+    unsigned char data[0];
 };
 
 #pragma pack( pop )
@@ -28,7 +28,7 @@ struct ESPIO
 static ESPIO_HANDLE ESPIO_CALL espio_open( char * key_enc, char * key_dec, int threads )
 {
     size_t len;
-    int i;
+    size_t i;
 
     ESPIO * esp = new ESPIO;
     memset( esp, 0, sizeof( ESPIO ) );
@@ -57,19 +57,19 @@ static ESPIO_HANDLE ESPIO_CALL espio_open( char * key_enc, char * key_dec, int t
 static int ESPIO_CALL espio_encrypt( ESPIO_HANDLE eh, void * data, unsigned len )
 {
     unsigned i;
+    unsigned char xorer;
     ESPIO * esp = (ESPIO *)eh;
     espdata * ed = (espdata *)data;
-    unsigned char xor;
 
     ed->spi = esp->spi_out;
-    xor = esp->xor_out + (unsigned char)ed->seq;
+    xorer = esp->xor_out + (unsigned char)ed->seq;
 
-    memset( &ed->data[0], xor, esp->iv_len );
+    memset( &ed->data[0], xorer, esp->iv_len );
     len -= sizeof( espdata );
-    memset( &ed->data[len - esp->mac_len], xor, esp->mac_len );
+    memset( &ed->data[len - esp->mac_len], xorer, esp->mac_len );
 
     for( i = 0; i < len; i++ )
-        ed->data[i] ^= xor;
+        ed->data[i] ^= xorer;
 
     return 1;
 }
@@ -77,25 +77,25 @@ static int ESPIO_CALL espio_encrypt( ESPIO_HANDLE eh, void * data, unsigned len 
 static int ESPIO_CALL espio_decrypt( ESPIO_HANDLE eh, void * data, unsigned len )
 {
     unsigned i;
+    unsigned char xorer;
     ESPIO * esp = (ESPIO *)eh;
     espdata * ed = (espdata *)data;
-    char xor;
 
     if( ed->spi != esp->spi_in )
         return 0;
 
-    xor = esp->xor_in + (unsigned char)ed->seq;
+    xorer = esp->xor_in + (unsigned char)ed->seq;
     len -= sizeof( espdata );
 
     for( i = 0; i < len; i++ )
-        ed->data[i] ^= xor;
+        ed->data[i] ^= xorer;
 
     for( i = 0; i < esp->iv_len; i++ )
-        if( ed->data[i] != xor )
+        if( ed->data[i] != xorer )
             return 0;
 
     for( i = len - esp->mac_len; i < len; i++ )
-        if( ed->data[i] != xor )
+        if( ed->data[i] != xorer )
             return 0;
 
     return 1;
