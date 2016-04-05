@@ -1,17 +1,17 @@
-all: libespio.so espio
+all: libespio.so espio_test
 
 libespio.so:
 	g++ -fPIC -shared -g -O2 -Wall -Werror -Wno-unused-function ../src/espio.cpp -o libespio.so
 
-espio:
-	gcc -I../src -g -O2 -Wall -Werror -Wno-unused-function ../examples/espio_test.c -ldl -o espio
+espio_test:
+	gcc -I../src -g -O2 -Wall -Werror -Wno-unused-function ../examples/espio_test.c -ldl -o espio_test
 
-install: libespio.so espio
+install: libespio.so espio_test
 	install -D libespio.so /usr/lib/libespio.so
-	install -D espio /usr/bin/espio
+	install -D espio_test /usr/bin/espio_test
 
 cleanup:
 	if test -e libespio.so; then unlink libespio.so; fi
-	if test -e espio; then unlink espio; fi
+	if test -e espio_test; then unlink espio_test; fi
 	if test -e /usr/lib/libespio.so; then unlink /usr/lib/libespio.so; fi
-	if test -e /usr/bin/espio; then unlink /usr/bin/espio; fi
+	if test -e /usr/bin/espio_test; then unlink /usr/bin/espio_test; fi
