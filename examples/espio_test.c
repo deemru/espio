@@ -247,7 +247,11 @@ static soque_pop_cb pop_cb = &pop_espio_soque_cb;
 
 #endif
 
+#ifdef WITH_SOQUE
 int main( int argc, char ** argv )
+#else
+int main()
+#endif
 {
     ESPIO_HANDLE eh[2];
     ESPIO_INFO einfo[2];
@@ -345,6 +349,7 @@ int main( int argc, char ** argv )
     memset( pkt, 0, sizeof( pkt ) );
 
     ESPIO_IOVEC iov;
+    unsigned seq = 0;
 
     iov.prolog = &pkt[0];
     iov.prolog_len = einfo[0].prolog;
