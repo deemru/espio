@@ -236,18 +236,17 @@ static void ESPIO_CALL espio_info( ESPIO_HANDLE eh, ESPIO_INFO * info )
     memcpy( info, &( (ESPIO *)eh )->info, sizeof( ESPIO_INFO ) );
 }
 
-ESPIO_FRAMEWORK * espio_framework()
+const ESPIO_FRAMEWORK * espio_framework()
 {
-    static ESPIO_FRAMEWORK esp;
+    static const ESPIO_FRAMEWORK eio = {
+        ESPIO_MAJOR,
+        ESPIO_MINOR,
+        espio_open,
+        espio_info,
+        espio_encrypt,
+        espio_decrypt,
+        espio_done,
+    };
 
-    esp.espio_major = ESPIO_MAJOR;
-    esp.espio_minor = ESPIO_MINOR;
-
-    esp.espio_open = espio_open;
-    esp.espio_info = espio_info;
-    esp.espio_encrypt = espio_encrypt;
-    esp.espio_decrypt = espio_decrypt;
-    esp.espio_done = espio_done;
-
-    return &esp;
+    return &eio;
 }

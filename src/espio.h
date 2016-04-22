@@ -1,3 +1,6 @@
+#ifndef ESPIO_H
+#define ESPIO_H
+
 #define ESPIO_MAJOR 1
 #define ESPIO_MINOR 0
 
@@ -84,7 +87,7 @@ extern "C" {
     } ESPIO_FRAMEWORK;
 
     typedef ESPIO_FRAMEWORK * ( *espio_framework_t )( );
-    ESPIO_API ESPIO_FRAMEWORK * espio_framework();
+    ESPIO_API const ESPIO_FRAMEWORK * espio_framework();
 
 #ifdef __cplusplus
 }
@@ -105,3 +108,57 @@ extern "C" {
 #ifndef ntohl
 #define ntohl(A) htonl(A)
 #endif
+
+#ifdef ESPIO_WITH_LOADER
+
+#ifdef _WIN32
+#define LIBLOAD( name ) LoadLibraryA( name )
+#define LIBFUNC( lib, name ) (UINT_PTR)GetProcAddress( lib, name )
+#else
+#define LIBLOAD( name ) dlopen( name, RTLD_LAZY )
+#define LIBFUNC( lib, name ) dlsym( lib, name )
+#endif
+
+static const ESPIO_FRAMEWORK * eio;
+
+static char espio_load()
+{
+    espio_framework_t espio_get_framework;
+
+    void * lib = LIBLOAD( ESPIO_LIBRARY );
+
+    if( !lib )
+    {
+        printf( "ERROR: \"%s\" not loaded\n", ESPIO_LIBRARY );
+        return 0;
+    }
+
+    espio_get_framework = (espio_framework_t)LIBFUNC( lib, ESPIO_GET_FRAMEWORK );
+
+    if( !espio_get_framework )
+    {
+        printf( "ERROR: \"%s\" not found in \"%s\"\n", ESPIO_GET_FRAMEWORK, ESPIO_LIBRARY );
+        return 0;
+    }
+
+    eio = espio_get_framework();
+
+    if( eio->espio_major != ESPIO_MAJOR )
+    {
+        printf( "ERROR: espio major version %d.%d != %d.%d\n", eio->espio_major, eio->espio_minor, ESPIO_MAJOR, ESPIO_MINOR );
+        return 0;
+    }
+
+    if( eio->espio_major < ESPIO_MINOR )
+    {
+        printf( "ERROR: espio minor version %d.%d < %d.%d\n", eio->espio_major, eio->espio_minor, ESPIO_MAJOR, ESPIO_MINOR );
+    }
+
+    printf( "%s (%d.%d) loaded\n", ESPIO_LIBRARY, eio->espio_major, eio->espio_minor );
+
+    return 1;
+}
+
+#endif // ESPIO_WITH_LOADER
+
+#endif // ESPIO_H
