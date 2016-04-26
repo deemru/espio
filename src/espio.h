@@ -149,10 +149,12 @@ static char espio_load()
         return 0;
     }
 
+#if ESPIO_MINOR
     if( eio->espio_major < ESPIO_MINOR )
     {
         printf( "ERROR: espio minor version %d.%d < %d.%d\n", eio->espio_major, eio->espio_minor, ESPIO_MAJOR, ESPIO_MINOR );
     }
+#endif
 
     printf( "%s (%d.%d) loaded\n", ESPIO_LIBRARY, eio->espio_major, eio->espio_minor );
 
