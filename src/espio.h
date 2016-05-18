@@ -156,7 +156,7 @@ static char espio_load()
     }
 #endif
 
-    printf( "%s (%d.%d) loaded\n", ESPIO_LIBRARY, eio->espio_major, eio->espio_minor );
+    printf( "SUCCESS: %s (%d.%d) loaded\n", ESPIO_LIBRARY, eio->espio_major, eio->espio_minor );
 
     return 1;
 }
