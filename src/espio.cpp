@@ -74,13 +74,15 @@ static ESPIO_CODE ESPIO_CALL espio_encrypt( ESPIO_HANDLE eh, unsigned batch, ESP
     for( n = 0; n < batch; n++ )
     {
 
-        if( iovs[n].prolog_len != esp->info.prolog ||
+        if( iovs[n].prolog_len < esp->info.prolog ||
             iovs[n].epilog_len < esp->info.epilog_max )
         {
             isError = true;
             iovs[n].code = ESPIO_ERROR_PARAM;
             continue;
         }
+
+        iovs[n].prolog_len = esp->info.prolog;
 
         unsigned char xorer = esp->xor_out + (unsigned char)iovs[n].seq;
 
@@ -96,8 +98,8 @@ static ESPIO_CODE ESPIO_CALL espio_encrypt( ESPIO_HANDLE eh, unsigned batch, ESP
         // PAYLOAD
         {
             unsigned char * buf = (unsigned char *)iovs[n].payload;
-            unsigned len = iovs[n].payload_len;
-            unsigned i;
+            size_t len = iovs[n].payload_len;
+            size_t i;
             
             for( i = 0; i < len; i++ )
                 buf[i] ^= xorer;
@@ -136,12 +138,12 @@ static ESPIO_CODE ESPIO_CALL espio_decrypt( ESPIO_HANDLE eh, unsigned batch, ESP
 
     for( n = 0; n < batch; n++ )
     {
+        size_t esplen = iovs[n].esp_len;
+
         // LENGTH CHECK
         {
-            unsigned len = iovs[n].esp_len;
-
-            if( len < esp->info.fixed ||
-                ( len - esp->info.fixed + ESPIO_NXPPAD ) % esp->info.alignment )
+            if( esplen < esp->info.fixed ||
+                ( esplen - esp->info.fixed + ESPIO_NXPPAD ) % esp->info.alignment )
             {
                 isError = true;
                 iovs[n].code = ESPIO_ERROR_LENGTH;
@@ -183,7 +185,7 @@ static ESPIO_CODE ESPIO_CALL espio_decrypt( ESPIO_HANDLE eh, unsigned batch, ESP
 
         // PAYLOAD
         {
-            unsigned len = i + iovs[n].esp_len - esp->info.fixed + ESPIO_NXPPAD;
+            size_t len = i + iovs[n].esp_len - esp->info.fixed + ESPIO_NXPPAD;
 
             for( ; i < len; i++ )
                 buf[i] ^= xorer;
@@ -216,8 +218,8 @@ static ESPIO_CODE ESPIO_CALL espio_decrypt( ESPIO_HANDLE eh, unsigned batch, ESP
                 continue;
             }
 
-            iovs[n].esp = (unsigned char *)iovs[n].esp + esp->info.prolog;
-            iovs[n].esp_len -= esp->info.fixed + padlen;
+            iovs[n].payload = buf + esp->info.prolog;
+            iovs[n].payload_len = esplen - esp->info.fixed - padlen;
             iovs[n].proto = proto;
             iovs[n].code = ESPIO_PASS;
         }
