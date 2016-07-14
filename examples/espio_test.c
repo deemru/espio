@@ -21,54 +21,35 @@ static volatile long long g_proc_count;
 
 typedef struct
 {
-    void * prologs;
-    unsigned prologs_len;
-    void * payloads;
-    unsigned payloads_len;
-    void * epilogs;
-    unsigned epilogs_len;
-    void * esps;
-    unsigned esps_len;
     ESPIO_IOVEC * iovs;
-    unsigned seq;
+    char * pkts;
+    unsigned seqnum;
     char is_out;
     unsigned push;
     unsigned pop;
     unsigned size;
+    unsigned pktlen;
     ESPIO_HANDLE eh;
 } ESPIO_SOQUE_ARG;
 
-char espio_soque_init( ESPIO_SOQUE_ARG * esa, ESPIO_HANDLE eh, unsigned qsize, unsigned pktlen, ESPIO_INFO * info, char is_out )
+char espio_soque_init( ESPIO_SOQUE_ARG * esa, ESPIO_HANDLE eh, unsigned qsize, unsigned pktlen, char is_out )
 {
-    if( is_out )
-    {
-        esa->prologs = malloc( qsize * info->prolog );
-        esa->payloads = malloc( qsize * pktlen );
-        esa->epilogs = malloc( qsize * info->epilog_max );
-        esa->esps = NULL;
-        esa->prologs_len = info->prolog;
-        esa->payloads_len = pktlen;
-        esa->epilogs_len = info->epilog_max;
-        esa->esps_len = 0;
-    }
-    else
-    {
-        esa->prologs = NULL;
-        esa->payloads = NULL;
-        esa->epilogs = NULL;
-        esa->esps = malloc( qsize * ( pktlen + info->prolog + info->epilog_max ) );
-        esa->prologs_len = 0;
-        esa->payloads_len = 0;
-        esa->epilogs_len = 0;
-        esa->esps_len = pktlen + info->prolog + info->epilog_max;
-    }
     esa->iovs = malloc( qsize * sizeof( ESPIO_IOVEC ) );
-    esa->seq = 0;
+    esa->pkts = malloc( qsize * pktlen );
+    esa->seqnum = 0;
     esa->is_out = is_out;
     esa->push = 0;
     esa->pop = 0;
     esa->size = qsize;
+    esa->pktlen = pktlen;
     esa->eh = eh;
+
+    {
+        unsigned i;
+
+        for( i = 0; i < qsize; i++ )
+            esa->iovs[i].data = &esa->pkts[i * pktlen];
+    }
 
     return 1;
 }
@@ -84,16 +65,9 @@ static int SOQUE_CALL push_espio_soque_cb( void * arg, unsigned batch, char wait
             n = 0;
 
         ESPIO_IOVEC * iov = &esa->iovs[n];
-        iov->prolog = (char *)esa->prologs + n * esa->prologs_len;
-        iov->prolog_len = esa->prologs_len;
-        iov->payload = (char *)esa->payloads + n * esa->payloads_len;
-        iov->payload_len = esa->payloads_len;
-        iov->epilog = (char *)esa->epilogs + n * esa->epilogs_len;
-        iov->epilog_len = esa->epilogs_len;
-        iov->seq = ++esa->seq;
-        iov->proto = 97;
-        iov->esp = NULL;
-        iov->esp_len = 0;
+        iov->data_len = esa->pktlen;
+        iov->seqnum = ++esa->seqnum;
+        iov->protocol = 97;
         iov->code = -1;
     }
 
@@ -147,14 +121,14 @@ static int SOQUE_CALL pop_espio_soque_cb( void * arg, unsigned batch, char waita
             n = 0;
 
         ESPIO_IOVEC * iov = &esa->iovs[n];
-        memset( iov, 0, sizeof( ESPIO_IOVEC ) );
+        memset( iov->data, 0, iov->data_len );
     }
 
     esa->pop += batch;
     if( esa->pop >= esa->size )
         esa->pop -= esa->size;
 
-    g_proc_count += batch * esa->payloads_len * 8;
+    g_proc_count += batch * esa->pktlen * 8;
 
     (void)waitable;
 
@@ -185,8 +159,8 @@ int main()
     if( !espio_load() )
         return 1;
 
-    eh[0] = eio->espio_open( "output_X", "input_X", 4 );
-    eh[1] = eio->espio_open( "input_X", "output_X", 4 );
+    eh[0] = eio->espio_open( "output_X", "input_X", 8 );
+    eh[1] = eio->espio_open( "input_X", "output_X", 8 );
 
     eio->espio_info( eh[0], &einfo[0] );
     eio->espio_info( eh[1], &einfo[1] );
@@ -195,15 +169,15 @@ int main()
 
     ESPIO_SOQUE_ARG esa[2];
 
-    espio_soque_init( &esa[0], eh[0], 2048, 1400, &einfo[0], 1 );
-    espio_soque_init( &esa[1], eh[1], 2048, 1400, &einfo[1], 0 );
+    espio_soque_init( &esa[0], eh[0], 2048, 1400, 1 );
+    espio_soque_init( &esa[1], eh[1], 2048, 1400, 0 );
 
     {
         SOQUE_HANDLE * q;
         SOQUE_THREADS_HANDLE qt;
         int queue_size = 2048;
         int queue_count = 1;
-        int threads_count = 4;
+        int threads_count = 1;
         char bind = 1;
         unsigned fast_batch = 32;
         unsigned help_batch = 32;
@@ -271,57 +245,77 @@ int main()
 #else // WITH_SOQUE
 
     char pkt[256];
-
-    memset( pkt, 0, sizeof( pkt ) );
+    char pktenc[ ESPIO_MAX_PROLOG + sizeof( pkt ) + ESPIO_MAX_EPILOG ];
+    unsigned pkt_enc_shift;
 
     ESPIO_IOVEC iov;
-    unsigned seq = 0;
 
-    iov.prolog = &pkt[0];
-    iov.prolog_len = einfo[0].prolog;
-    iov.payload = &pkt[iov.prolog_len];
-    iov.payload_len = 200;
-    iov.epilog = &pkt[iov.prolog_len + iov.payload_len];
-    iov.epilog_len = einfo[0].epilog_max;
-    iov.proto = 17;
-    iov.seq = ++seq;
-
-    if( ESPIO_PASS != eio->espio_encrypt( eh[0], 1, &iov ) )
+    // A >> B
     {
-        printf( "ERROR: espio_encrypt failed" );
-        return 1;
+        iov.data = pkt;
+        iov.data_len = sizeof( pkt );
+        iov.protocol = 17;
+        iov.seqnum = 1;
+
+        memset( pkt, 0, sizeof( pkt ) );
+
+        if( ESPIO_PASS != eio->espio_encrypt( eh[0], 1, &iov ) )
+        {
+            printf( "ERROR: espio_encrypt failed" );
+            return 1;
+        }
+
+        memcpy( pktenc, iov.prolog, iov.prolog_len );
+        pkt_enc_shift = iov.prolog_len;
+
+        memcpy( pktenc + pkt_enc_shift, iov.data, iov.data_len );
+        pkt_enc_shift += iov.data_len;
+
+        memcpy( pktenc + pkt_enc_shift, iov.epilog, iov.epilog_len );
+        pkt_enc_shift += iov.epilog_len;
+
+        iov.data = pktenc;
+        iov.data_len = pkt_enc_shift;
+
+        if( ESPIO_PASS != eio->espio_decrypt( eh[1], 1, &iov ) )
+        {
+            printf( "ERROR: espio_decrypt failed" );
+            return 1;
+        }
     }
 
-    iov.esp = iov.prolog;
-    iov.esp_len = iov.prolog_len + iov.payload_len + iov.epilog_len;
-
-    if( ESPIO_PASS != eio->espio_decrypt( eh[1], 1, &iov ) )
+    // B >> A
     {
-        printf( "ERROR: espio_decrypt failed" );
-        return 1;
-    }
+        iov.data = pkt;
+        iov.data_len = sizeof( pkt );
+        iov.protocol = 17;
+        iov.seqnum = 1;
 
-    iov.prolog = &pkt[0];
-    iov.prolog_len = einfo[0].prolog;
-    iov.payload = &pkt[iov.prolog_len];
-    iov.payload_len = 0;
-    iov.epilog = &pkt[iov.prolog_len + iov.payload_len];
-    iov.epilog_len = einfo[0].epilog_max;
-    iov.seq = ++seq;
+        memset( pkt, 0, sizeof( pkt ) );
 
-    if( ESPIO_PASS != eio->espio_encrypt( eh[0], 1, &iov ) )
-    {
-        printf( "ERROR: espio_encrypt failed" );
-        return 1;
-    }
+        if( ESPIO_PASS != eio->espio_encrypt( eh[1], 1, &iov ) )
+        {
+            printf( "ERROR: espio_encrypt failed" );
+            return 1;
+        }
 
-    iov.esp = iov.prolog;
-    iov.esp_len = iov.prolog_len + iov.payload_len + iov.epilog_len;
+        memcpy( pktenc, iov.prolog, iov.prolog_len );
+        pkt_enc_shift = iov.prolog_len;
 
-    if( ESPIO_PASS != eio->espio_decrypt( eh[1], 1, &iov ) )
-    {
-        printf( "ERROR: espio_decrypt failed" );
-        return 1;
+        memcpy( pktenc + pkt_enc_shift, iov.data, iov.data_len );
+        pkt_enc_shift += iov.data_len;
+
+        memcpy( pktenc + pkt_enc_shift, iov.epilog, iov.epilog_len );
+        pkt_enc_shift += iov.epilog_len;
+
+        iov.data = pktenc;
+        iov.data_len = pkt_enc_shift;
+
+        if( ESPIO_PASS != eio->espio_decrypt( eh[0], 1, &iov ) )
+        {
+            printf( "ERROR: espio_decrypt failed" );
+            return 1;
+        }
     }
 
     return 0;

@@ -73,53 +73,41 @@ static ESPIO_CODE ESPIO_CALL espio_encrypt( ESPIO_HANDLE eh, unsigned batch, ESP
 
     for( n = 0; n < batch; n++ )
     {
-
-        if( iovs[n].prolog_len < esp->info.prolog ||
-            iovs[n].epilog_len < esp->info.epilog_max )
-        {
-            isError = true;
-            iovs[n].code = ESPIO_ERROR_PARAM;
-            continue;
-        }
-
         iovs[n].prolog_len = esp->info.prolog;
 
-        unsigned char xorer = esp->xor_out + (unsigned char)iovs[n].seq;
+        unsigned char xorer = esp->xor_out + (unsigned char)iovs[n].seqnum;
 
         // PROLOG
         {
             espdata * ed = (espdata *)iovs[n].prolog;
 
             ed->spi = eh->spi_out;
-            ed->seq = htonl( iovs[n].seq );
+            ed->seq = htonl( iovs[n].seqnum );
             memset( &ed->iv[0], xorer, esp->iv_len );
         }
 
         // PAYLOAD
         {
-            unsigned char * buf = (unsigned char *)iovs[n].payload;
-            size_t len = iovs[n].payload_len;
+            unsigned char * buf = (unsigned char *)iovs[n].data;
+            size_t len = iovs[n].data_len;
             size_t i;
             
-            for( i = 0; i < len; i++ )
-                buf[i] ^= xorer;
+            for( i = 0; i < len; i++ ) buf[i] ^= xorer;
         }
 
         // EPILOG
         {
-            unsigned alignment = esp->info.alignment - ( iovs[n].payload_len + ESPIO_NXPPAD ) % esp->info.alignment;
+            unsigned alignment = esp->info.alignment - ( iovs[n].data_len + ESPIO_NXPPAD ) % esp->info.alignment;
             unsigned char * buf = (unsigned char *)iovs[n].epilog;
             unsigned len = esp->info.epilog + alignment;
             unsigned i;
             
-            for( i = 0; i < alignment; i++ )
-                buf[i] = (unsigned char)( i + 1 ) ^ xorer;
+            for( i = 0; i < alignment; i++ ) buf[i] = (unsigned char)( i + 1 ) ^ xorer;
 
             buf[i++] = (unsigned char)alignment ^ xorer;
-            buf[i++] = iovs[n].proto ^ xorer;
+            buf[i++] = iovs[n].protocol ^ xorer;
 
-            for( ; i < len; i++ )
-                buf[i] = xorer;
+            for( ; i < len; i++ ) buf[i] = xorer;
 
             iovs[n].epilog_len = len;
         }
@@ -138,7 +126,7 @@ static ESPIO_CODE ESPIO_CALL espio_decrypt( ESPIO_HANDLE eh, unsigned batch, ESP
 
     for( n = 0; n < batch; n++ )
     {
-        size_t esplen = iovs[n].esp_len;
+        size_t esplen = iovs[n].data_len;
 
         // LENGTH CHECK
         {
@@ -151,7 +139,7 @@ static ESPIO_CODE ESPIO_CALL espio_decrypt( ESPIO_HANDLE eh, unsigned batch, ESP
             }
         }        
 
-        unsigned char * buf = (unsigned char *)iovs[n].esp;
+        unsigned char * buf = (unsigned char *)iovs[n].data;
         unsigned char xorer;
 
         // SPI CHECK
@@ -185,7 +173,7 @@ static ESPIO_CODE ESPIO_CALL espio_decrypt( ESPIO_HANDLE eh, unsigned batch, ESP
 
         // PAYLOAD
         {
-            size_t len = i + iovs[n].esp_len - esp->info.fixed + ESPIO_NXPPAD;
+            size_t len = i + iovs[n].data_len - esp->info.fixed + ESPIO_NXPPAD;
 
             for( ; i < len; i++ )
                 buf[i] ^= xorer;
@@ -211,16 +199,16 @@ static ESPIO_CODE ESPIO_CALL espio_decrypt( ESPIO_HANDLE eh, unsigned batch, ESP
             unsigned char proto = buf[--i];
             unsigned char padlen = buf[--i];
 
-            if( padlen > iovs[n].esp_len - esp->info.fixed )
+            if( padlen > iovs[n].data_len - esp->info.fixed )
             {
                 isError = true;
                 iovs[n].code = ESPIO_ERROR_DROP_PROTOCOL;
                 continue;
             }
 
-            iovs[n].payload = buf + esp->info.prolog;
-            iovs[n].payload_len = esplen - esp->info.fixed - padlen;
-            iovs[n].proto = proto;
+            iovs[n].data_dec_shift = esp->info.prolog;
+            iovs[n].data_dec_len = esplen - esp->info.fixed - padlen;
+            iovs[n].protocol = proto;
             iovs[n].code = ESPIO_PASS;
         }
     }

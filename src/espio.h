@@ -1,8 +1,8 @@
 #ifndef ESPIO_H
 #define ESPIO_H
 
-#define ESPIO_MAJOR 1
-#define ESPIO_MINOR 0
+#define ESPIO_MAJOR 0
+#define ESPIO_MINOR 1
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,9 +25,12 @@ extern "C" {
 
 #define ESPIO_HDRLEN 8
 #define ESPIO_NXPPAD 2
+#define ESPIO_MAX_PROLOG 16
+#define ESPIO_MAX_EPILOG 32
 
     typedef enum {
         ESPIO_PASS,
+        ESPIO_ABSORB,
         ESPIO_ERROR,
         ESPIO_ERROR_PARAM,
         ESPIO_ERROR_LENGTH,
@@ -51,16 +54,16 @@ extern "C" {
     } ESPIO_INFO;
 
     typedef struct {
-        void * esp;
-        size_t esp_len;
-        void * prolog;
-        size_t prolog_len;
-        void * payload;
-        size_t payload_len;
-        void * epilog;
-        size_t epilog_len;
-        unsigned seq;
-        unsigned char proto;
+        char * data;
+        char prolog[ESPIO_MAX_PROLOG];
+        char epilog[ESPIO_MAX_EPILOG];
+        unsigned data_len;
+        unsigned prolog_len;
+        unsigned epilog_len;
+        unsigned data_dec_shift;
+        unsigned data_dec_len;
+        unsigned seqnum;
+        unsigned char protocol;
         ESPIO_CODE code;
     } ESPIO_IOVEC;
 
