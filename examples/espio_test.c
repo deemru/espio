@@ -58,8 +58,9 @@ static int SOQUE_CALL push_espio_soque_cb( void * arg, unsigned batch, char wait
 {
     ESPIO_SOQUE_ARG * esa = ( ESPIO_SOQUE_ARG * )arg;
     unsigned n = esa->push;
+    unsigned i;
 
-    for( unsigned i = 0; i < batch; i++, n++ )
+    for( i = 0; i < batch; i++, n++ )
     {
         if( n == esa->size )
             n = 0;
@@ -114,8 +115,9 @@ static int SOQUE_CALL pop_espio_soque_cb( void * arg, unsigned batch, char waita
 {
     ESPIO_SOQUE_ARG * esa = (ESPIO_SOQUE_ARG *)arg;
     unsigned n = esa->pop;
+    unsigned i;
 
-    for( unsigned i = 0; i < batch; i++, n++ )
+    for( i = 0; i < batch; i++, n++ )
     {
         if( n == esa->size )
             n = 0;
