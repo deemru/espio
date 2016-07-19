@@ -219,7 +219,7 @@ int main()
             q[i] = soq->soque_open( queue_size, &esa[i], push_cb, proc_cb, pop_cb );
 
         qt = soq->soque_threads_open( threads_count, bind, q, queue_count );
-        soq->soque_threads_tune( qt, fast_batch, help_batch );
+        soq->soque_threads_tune( qt, fast_batch, help_batch, 1, 50 );
 
         SLEEP_1_SEC; // warming
 

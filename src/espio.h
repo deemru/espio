@@ -153,9 +153,9 @@ static char espio_load()
     }
 
 #if ESPIO_MINOR
-    if( eio->espio_major < ESPIO_MINOR )
+    if( eio->espio_minor < ESPIO_MINOR )
     {
-        printf( "ERROR: espio minor version %d.%d < %d.%d\n", eio->espio_major, eio->espio_minor, ESPIO_MAJOR, ESPIO_MINOR );
+        printf( "WARNING: espio minor version %d.%d < %d.%d\n", eio->espio_major, eio->espio_minor, ESPIO_MAJOR, ESPIO_MINOR );
     }
 #endif
 
