@@ -101,6 +101,7 @@ extern "C" {
 #define htonl( A ) ( A )
 #else // WORDS_BIGENDIAN
 #ifdef _WIN32
+#include <stdlib.h>
 #define htonl( A ) _byteswap_ulong( A )
 #else // not _WIN32
 #define htonl( A ) __builtin_bswap32( A )
