@@ -98,16 +98,17 @@ extern "C" {
 
 #ifndef htonl
 #ifdef WORDS_BIGENDIAN
-#define htonl( A ) ( A )
+#define htonl( x ) ( x )
 #else // WORDS_BIGENDIAN
 #ifdef _WIN32
 #include <stdlib.h>
-#define htonl( A ) _byteswap_ulong( A )
+#define htonl( x ) _byteswap_ulong( x )
 #else // not _WIN32
-#define htonl( A ) __builtin_bswap32( A )
+#include <byteswap.h>
+#define htonl( x ) bswap_32( x )
 #endif // _WIN32
 #endif // WORDS_BIGENDIAN
-#define ntohl( A ) htonl( A )
+#define ntohl( x ) htonl( x )
 #endif
 
 #ifdef ESPIO_WITH_LOADER
