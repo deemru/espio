@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdint.h>
 #include "espio.h"
 
 #ifdef _WIN32
@@ -9,26 +10,26 @@
 
 struct espdata
 {
-    unsigned spi;
-    unsigned seq;
-    unsigned char iv[0];
+    uint32_t spi;
+    uint32_t seq;
+    uint8_t iv[0];
 };
 
 #pragma pack( pop )
 
 struct ESPIO
 {
-    unsigned spi_out;
-    unsigned spi_in;
-    unsigned char xor_out;
-    unsigned char xor_in;
-    unsigned iv_len;
-    unsigned mac_len;
-    unsigned align_len;
+    uint32_t spi_out;
+    uint32_t spi_in;
+    uint8_t xor_out;
+    uint8_t xor_in;
+    uint16_t iv_len;
+    uint16_t mac_len;
+    uint16_t align_len;
     ESPIO_INFO info;
 };
 
-static ESPIO_HANDLE ESPIO_CALL espio_open( char * key_enc, char * key_dec, unsigned threads )
+static ESPIO_HANDLE ESPIO_CALL espio_open( char * key_enc, char * key_dec, uint32_t threads )
 {
     size_t len;
     size_t i;
@@ -65,9 +66,9 @@ static ESPIO_HANDLE ESPIO_CALL espio_open( char * key_enc, char * key_dec, unsig
     return (ESPIO_HANDLE)esp;
 }
 
-static ESPIO_CODE ESPIO_CALL espio_encrypt( ESPIO_HANDLE eh, unsigned batch, ESPIO_IOVEC * iovs )
+static ESPIO_CODE ESPIO_CALL espio_encrypt( ESPIO_HANDLE eh, uint32_t batch, ESPIO_IOVEC * iovs )
 {
-    unsigned n;
+    uint32_t n;
     ESPIO * esp = (ESPIO *)eh;
     bool isError = false;
 
@@ -75,7 +76,7 @@ static ESPIO_CODE ESPIO_CALL espio_encrypt( ESPIO_HANDLE eh, unsigned batch, ESP
     {
         iovs[n].prolog_len = esp->info.prolog;
 
-        unsigned char xorer = esp->xor_out + (unsigned char)iovs[n].seqnum;
+        uint8_t xorer = esp->xor_out + (uint8_t)iovs[n].seqnum;
 
         // PROLOG
         {
@@ -88,7 +89,7 @@ static ESPIO_CODE ESPIO_CALL espio_encrypt( ESPIO_HANDLE eh, unsigned batch, ESP
 
         // PAYLOAD
         {
-            unsigned char * buf = (unsigned char *)iovs[n].data;
+            uint8_t * buf = (uint8_t *)iovs[n].data;
             size_t len = iovs[n].data_len;
             size_t i;
             
@@ -97,14 +98,14 @@ static ESPIO_CODE ESPIO_CALL espio_encrypt( ESPIO_HANDLE eh, unsigned batch, ESP
 
         // EPILOG
         {
-            unsigned alignment = esp->info.alignment - ( iovs[n].data_len + ESPIO_NXPPAD ) % esp->info.alignment;
-            unsigned char * buf = (unsigned char *)iovs[n].epilog;
-            unsigned len = esp->info.epilog + alignment;
-            unsigned i;
+            uint16_t alignment = esp->info.alignment - ( iovs[n].data_len + ESPIO_NXPPAD ) % esp->info.alignment;
+            uint8_t * buf = (uint8_t *)iovs[n].epilog;
+            uint16_t len = esp->info.epilog + alignment;
+            uint32_t i;
             
-            for( i = 0; i < alignment; i++ ) buf[i] = (unsigned char)( i + 1 ) ^ xorer;
+            for( i = 0; i < alignment; i++ ) buf[i] = (uint8_t)( i + 1 ) ^ xorer;
 
-            buf[i++] = (unsigned char)alignment ^ xorer;
+            buf[i++] = (uint8_t)alignment ^ xorer;
             buf[i++] = iovs[n].protocol ^ xorer;
 
             for( ; i < len; i++ ) buf[i] = xorer;
@@ -118,15 +119,15 @@ static ESPIO_CODE ESPIO_CALL espio_encrypt( ESPIO_HANDLE eh, unsigned batch, ESP
     return isError ? ESPIO_ERROR : ESPIO_PASS;
 }
 
-static ESPIO_CODE ESPIO_CALL espio_decrypt( ESPIO_HANDLE eh, unsigned batch, ESPIO_IOVEC * iovs )
+static ESPIO_CODE ESPIO_CALL espio_decrypt( ESPIO_HANDLE eh, uint32_t batch, ESPIO_IOVEC * iovs )
 {
-    unsigned n;
+    uint32_t n;
     ESPIO * esp = (ESPIO *)eh;
     bool isError = false;
 
     for( n = 0; n < batch; n++ )
     {
-        size_t esplen = iovs[n].data_len;
+        uint16_t esplen = iovs[n].data_len;
 
         // LENGTH CHECK
         {
@@ -139,8 +140,8 @@ static ESPIO_CODE ESPIO_CALL espio_decrypt( ESPIO_HANDLE eh, unsigned batch, ESP
             }
         }        
 
-        unsigned char * buf = (unsigned char *)iovs[n].data;
-        unsigned char xorer;
+        uint8_t * buf = (uint8_t *)iovs[n].data;
+        uint8_t xorer;
 
         // SPI CHECK
         {
@@ -153,14 +154,14 @@ static ESPIO_CODE ESPIO_CALL espio_decrypt( ESPIO_HANDLE eh, unsigned batch, ESP
                 continue;
             }
 
-            xorer = esp->xor_in + (unsigned char)ntohl( ed->seq );
+            xorer = esp->xor_in + (uint8_t)ntohl( ed->seq );
         }
 
-        unsigned i = ESPIO_HDRLEN;
+        uint32_t i = ESPIO_HDRLEN;
 
         // PROLOG CHECK
         {
-            unsigned len = i + esp->iv_len;
+            uint32_t len = i + esp->iv_len;
 
             for( ; i < len; i++ )
                 if( buf[i] != xorer )
@@ -181,7 +182,7 @@ static ESPIO_CODE ESPIO_CALL espio_decrypt( ESPIO_HANDLE eh, unsigned batch, ESP
 
         // EPILOG CHECK
         {
-            unsigned len = i + esp->mac_len;
+            uint32_t len = i + esp->mac_len;
 
             for( ; i < len; i++ )
                 if( buf[i] != xorer )
@@ -196,8 +197,8 @@ static ESPIO_CODE ESPIO_CALL espio_decrypt( ESPIO_HANDLE eh, unsigned batch, ESP
         {
             i -= esp->mac_len;
 
-            unsigned char proto = buf[--i];
-            unsigned char padlen = buf[--i];
+            uint8_t proto = buf[--i];
+            uint8_t padlen = buf[--i];
 
             if( padlen > iovs[n].data_len - esp->info.fixed )
             {

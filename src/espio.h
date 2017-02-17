@@ -43,27 +43,27 @@ extern "C" {
     } ESPIO_CODE;
 
     typedef struct {
-        unsigned spi_in;
-        unsigned spi_out;
-        unsigned prolog;
-        unsigned epilog;
-        unsigned epilog_max;
-        unsigned alignment;
-        unsigned fixed;
-        unsigned iovs;
+        uint32_t spi_in;
+        uint32_t spi_out;
+        uint16_t prolog;
+        uint16_t epilog;
+        uint16_t epilog_max;
+        uint16_t alignment;
+        uint16_t fixed;
+        uint16_t iovs;
     } ESPIO_INFO;
 
     typedef struct {
         char * data;
-        char prolog[ESPIO_MAX_PROLOG];
-        char epilog[ESPIO_MAX_EPILOG];
-        unsigned data_len;
-        unsigned prolog_len;
-        unsigned epilog_len;
-        unsigned data_dec_shift;
-        unsigned data_dec_len;
-        unsigned seqnum;
-        unsigned char protocol;
+        uint8_t prolog[ESPIO_MAX_PROLOG];
+        uint8_t epilog[ESPIO_MAX_EPILOG];
+        uint16_t data_len;
+        uint16_t prolog_len;
+        uint16_t epilog_len;
+        uint16_t data_dec_shift;
+        uint16_t data_dec_len;
+        uint32_t seqnum;
+        uint8_t protocol;
         ESPIO_CODE code;
     } ESPIO_IOVEC;
 
