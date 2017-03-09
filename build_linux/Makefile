@@ -1,7 +1,7 @@
-all: libespio.so espio_test
+esall: libespio.so espio_test
 
 libespio.so:
-	g++ -fPIC -shared -g -O2 -Wall -Werror -Wno-unused-function ../src/espio.cpp -o libespio.so
+	g++ -Wall -Wl,--no-as-needed -pthread -std=c++11 -fPIC -shared -g -O2 -Werror -Wno-unused-function ../src/espio.cpp -o libespio.so
 
 espio_test:
 	gcc -I../src -g -O2 -Wall -Werror -Wno-unused-function ../examples/espio_test.c -ldl -o espio_test

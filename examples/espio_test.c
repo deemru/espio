@@ -164,7 +164,7 @@ int main( int argc, char ** argv )
         return 1;
 
 #define ESPIO_WITH_SOQUE
-#include "../../../soque/trunk/examples/soque_test.c"
+#include "../../soque/examples/soque_test.c"
 #else // WITH_SOQUE
 
     ESPIO_HANDLE eh[2];
