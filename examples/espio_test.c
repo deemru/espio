@@ -55,7 +55,8 @@ char espio_soque_init( ESPIO_SOQUE_ARG * esa, ESPIO_HANDLE eh, unsigned qsize, u
     return 1;
 }
 
-static int SOQUE_CALL push_espio_soque_cb( void * arg, unsigned batch, char waitable )
+
+static uint32_t SOQUE_CALL push_espio_soque_cb( void * arg, uint32_t batch, uint8_t waitable )
 {
     ESPIO_SOQUE_ARG * esa = ( ESPIO_SOQUE_ARG * )arg;
     unsigned n = esa->push;
@@ -67,7 +68,7 @@ static int SOQUE_CALL push_espio_soque_cb( void * arg, unsigned batch, char wait
             n = 0;
 
         ESPIO_IOVEC * iov = &esa->iovs[n];
-        iov->data_len = esa->pktlen;
+        iov->data_len = (uint16_t)esa->pktlen;
         iov->seqnum = ++esa->seqnum;
         iov->protocol = 97;
         iov->code = -1;
@@ -82,21 +83,21 @@ static int SOQUE_CALL push_espio_soque_cb( void * arg, unsigned batch, char wait
     return batch;
 }
 
-static void SOQUE_CALL proc_espio_soque_cb( void * arg, unsigned batch, unsigned index )
+static void SOQUE_CALL proc_espio_soque_cb( void * arg, SOQUE_BATCH sb )
 {
     ESPIO_SOQUE_ARG * esa = (ESPIO_SOQUE_ARG *)arg;
-    ESPIO_IOVEC * iov = &esa->iovs[index];
+    ESPIO_IOVEC * iov = &esa->iovs[sb.index];
 
-    if( index + batch <= esa->size )
+    if( sb.index + sb.count <= esa->size )
     {
-        if( ESPIO_PASS != eio->espio_encrypt( esa->eh, batch, iov ) )
+        if( ESPIO_PASS != eio->espio_encrypt( esa->eh, sb.count, iov ) )
         {
             printf( "ERROR: espio_encrypt failed" );
         }
     }
     else
     {
-        unsigned first_batch = esa->size - index;
+        unsigned first_batch = esa->size - sb.index;
 
         if( ESPIO_PASS != eio->espio_encrypt( esa->eh, first_batch, iov ) )
         {
@@ -105,14 +106,14 @@ static void SOQUE_CALL proc_espio_soque_cb( void * arg, unsigned batch, unsigned
 
         iov = &esa->iovs[0];
 
-        if( ESPIO_PASS != eio->espio_encrypt( esa->eh, batch - first_batch, iov ) )
+        if( ESPIO_PASS != eio->espio_encrypt( esa->eh, sb.count - first_batch, iov ) )
         {
             printf( "ERROR: espio_encrypt failed" );
         }
     }
 }
 
-static int SOQUE_CALL pop_espio_soque_cb( void * arg, unsigned batch, char waitable )
+static uint32_t SOQUE_CALL pop_espio_soque_cb( void * arg, uint32_t batch, uint8_t waitable )
 {
     ESPIO_SOQUE_ARG * esa = (ESPIO_SOQUE_ARG *)arg;
     unsigned n = esa->pop;
@@ -141,6 +142,7 @@ static int SOQUE_CALL pop_espio_soque_cb( void * arg, unsigned batch, char waita
 static soque_push_cb push_cb = &push_espio_soque_cb;
 static soque_proc_cb proc_cb = &proc_espio_soque_cb;
 static soque_pop_cb pop_cb = &pop_espio_soque_cb;
+static void ** cb_arg;
 
 #ifdef _WIN32
 #define SLEEP_1_SEC Sleep( 1000 )
@@ -150,12 +152,21 @@ static soque_pop_cb pop_cb = &pop_espio_soque_cb;
 
 #endif // WITH_SOQUE
 
-#ifdef WITH_SOQUE
+
 int main( int argc, char ** argv )
-#else
-int main()
-#endif
 {
+
+#ifdef WITH_SOQUE
+
+    int proctsc = 1400;
+
+    if( !espio_load() )
+        return 1;
+
+#define ESPIO_WITH_SOQUE
+#include "../../../soque/trunk/examples/soque_test.c"
+#else // WITH_SOQUE
+
     ESPIO_HANDLE eh[2];
     ESPIO_INFO einfo[2];
 
@@ -168,88 +179,9 @@ int main()
     eio->espio_info( eh[0], &einfo[0] );
     eio->espio_info( eh[1], &einfo[1] );
 
-#ifdef WITH_SOQUE
-
-    ESPIO_SOQUE_ARG esa[2];
-
-    espio_soque_init( &esa[0], eh[0], 2048, 1400, 1 );
-    espio_soque_init( &esa[1], eh[1], 2048, 1400, 0 );
-
-    {
-        SOQUE_HANDLE * q;
-        SOQUE_THREADS_HANDLE qt;
-        int queue_size = 2048;
-        int queue_count = 1;
-        int threads_count = 1;
-        char bind = 1;
-        unsigned fast_batch = 32;
-        unsigned help_batch = 32;
-
-        long long speed_save;
-        double speed_change;
-        double speed_approx_change;
-        double speed_moment = 0;
-        double speed_approx = 0;
-        int n = 0;
-        int i;
-
-        if( argc > 1 )
-            queue_size = atoi( argv[1] );
-        if( argc > 2 )
-            queue_count = atoi( argv[2] );
-        if( argc > 3 )
-            threads_count = atoi( argv[3] );
-        if( argc > 4 )
-            bind = (char)atoi( argv[4] );
-        if( argc > 5 )
-            fast_batch = atoi( argv[5] );
-        if( argc > 6 )
-            help_batch = atoi( argv[6] );
-
-        if( !soque_load() )
-            return 1;
-
-        printf( "queue_size = %d\n", queue_size );
-        printf( "queue_count = %d\n", queue_count );
-        printf( "threads_count = %d\n", threads_count );
-        printf( "bind = %d\n", bind );
-        printf( "fast_batch = %d\n", fast_batch );
-        printf( "help_batch = %d\n\n", help_batch );
-
-        q = malloc( queue_count * sizeof( void * ) );
-
-        for( i = 0; i < queue_count; i++ )
-            q[i] = soq->soque_open( queue_size, &esa[i], push_cb, proc_cb, pop_cb );
-
-        qt = soq->soque_threads_open( threads_count, bind, q, queue_count );
-        soq->soque_threads_tune( qt, fast_batch, help_batch, 1, 50 );
-
-        SLEEP_1_SEC; // warming
-
-        for( ;; )
-        {
-            speed_save = g_proc_count;
-            SLEEP_1_SEC;
-            speed_change = speed_moment;
-            speed_approx_change = speed_approx;
-            speed_moment = (double)( g_proc_count - speed_save );
-            speed_approx = ( speed_approx * n + speed_moment ) / ( n + 1 );
-            printf( "Gbps:   %.03f (%s%0.03f)   ~   %.03f (%s%0.03f)\n",
-                speed_moment / 1000000000,
-                speed_change <= speed_moment ? "+" : "",
-                ( speed_moment - speed_change ) / 1000000000,
-                speed_approx / 1000000000,
-                speed_approx_change <= speed_approx ? "+" : "",
-                ( speed_approx - speed_approx_change ) / 1000000000 );
-            n++;
-        }
-    }
-
-#else // WITH_SOQUE
-
     char pkt[256];
     char pktenc[ ESPIO_MAX_PROLOG + sizeof( pkt ) + ESPIO_MAX_EPILOG ];
-    unsigned pkt_enc_shift;
+    uint16_t pkt_enc_shift;
 
     ESPIO_IOVEC iov;
 
@@ -320,6 +252,9 @@ int main()
             return 1;
         }
     }
+
+    (void)argc;
+    (void)argv;
 
     return 0;
 
